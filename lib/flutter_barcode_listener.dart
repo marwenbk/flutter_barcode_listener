@@ -1,7 +1,6 @@
 library flutter_barcode_listener;
 
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -48,7 +47,7 @@ class _BarcodeKeyboardListenerState extends State<BarcodeKeyboardListener> {
 
   _BarcodeKeyboardListenerState(this._onBarcodeScannedCallback,
       this._bufferDuration, this._useKeyDownEvent, this._caseSensitive) {
-    RawKeyboard.instance.addListener(_keyBoardCallback);
+    HardwareKeyboard.instance.addListener(_keyBoardCallback);
     _keyboardSubscription =
         _controller.stream.where((char) => char != null).listen(onKeyEvent);
   }
@@ -82,49 +81,28 @@ class _BarcodeKeyboardListenerState extends State<BarcodeKeyboardListener> {
     _scannedChars = [];
   }
 
-  void _keyBoardCallback(RawKeyEvent keyEvent) {
-    print("Key event: ${keyEvent.character}, Logical key: ${keyEvent.logicalKey}");
+  void _keyBoardCallback(KeyboardEvent keyEvent) {
+    print("Key event: ${keyEvent.character}, Physical key: ${keyEvent.physicalKey}");
 
-    if (keyEvent.logicalKey.keyId > 255 &&
-        keyEvent.data.logicalKey != LogicalKeyboardKey.enter &&
-        keyEvent.data.logicalKey != LogicalKeyboardKey.shiftLeft) return;
-    if ((!_useKeyDownEvent && keyEvent is RawKeyUpEvent) ||
-        (_useKeyDownEvent && keyEvent is RawKeyDownEvent)) {
-      if (keyEvent.data is RawKeyEventDataAndroid) {
-        if (keyEvent.data.logicalKey == LogicalKeyboardKey.shiftLeft) {
+    if (keyEvent.physicalKey.usbHidUsage > 255 &&
+        keyEvent.physicalKey != PhysicalKeyboardKey.enter &&
+        keyEvent.physicalKey != PhysicalKeyboardKey.shiftLeft) return;
+    if ((!_useKeyDownEvent && keyEvent is KeyUpEvent) ||
+        (_useKeyDownEvent && keyEvent is KeyDownEvent)) {
+      if (keyEvent is KeyDownEvent) {
+        if (keyEvent.physicalKey == PhysicalKeyboardKey.shiftLeft) {
           _isShiftPressed = true;
         } else {
           if (_isShiftPressed && _caseSensitive) {
             _isShiftPressed = false;
-            _controller.sink.add(String.fromCharCode(
-                    ((keyEvent.data) as RawKeyEventDataAndroid).codePoint)
-                .toUpperCase());
+            _controller.sink.add(keyEvent.character?.toUpperCase());
           } else {
-            _controller.sink.add(String.fromCharCode(
-                ((keyEvent.data) as RawKeyEventDataAndroid).codePoint));
+            _controller.sink.add(keyEvent.character);
           }
         }
-      } else if (keyEvent.data is RawKeyEventDataFuchsia) {
-        _controller.sink.add(String.fromCharCode(
-            ((keyEvent.data) as RawKeyEventDataFuchsia).codePoint));
-      } else if (keyEvent.data.logicalKey == LogicalKeyboardKey.enter) {
+      }
+      if (keyEvent.physicalKey == PhysicalKeyboardKey.enter) {
         _controller.sink.add(lineFeed);
-      } else if (keyEvent.data is RawKeyEventDataWeb) {
-        _controller.sink.add(((keyEvent.data) as RawKeyEventDataWeb).keyLabel);
-      } else if (keyEvent.data is RawKeyEventDataLinux) {
-        _controller.sink
-            .add(((keyEvent.data) as RawKeyEventDataLinux).keyLabel);
-      } else if (keyEvent.data is RawKeyEventDataWindows) {
-        _controller.sink.add(String.fromCharCode(
-            ((keyEvent.data) as RawKeyEventDataWindows).keyCode));
-      } else if (keyEvent.data is RawKeyEventDataMacOs) {
-        _controller.sink
-            .add(((keyEvent.data) as RawKeyEventDataMacOs).characters);
-      } else if (keyEvent.data is RawKeyEventDataIos) {
-        _controller.sink
-            .add(((keyEvent.data) as RawKeyEventDataIos).characters);
-      } else {
-        _controller.sink.add(keyEvent.character);
       }
     }
   }
@@ -138,7 +116,7 @@ class _BarcodeKeyboardListenerState extends State<BarcodeKeyboardListener> {
   void dispose() {
     _keyboardSubscription.cancel();
     _controller.close();
-    RawKeyboard.instance.removeListener(_keyBoardCallback);
+    HardwareKeyboard.instance.removeListener(_keyBoardCallback);
     super.dispose();
   }
 }
