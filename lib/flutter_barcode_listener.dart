@@ -7,51 +7,21 @@ import 'package:flutter/services.dart';
 
 typedef BarcodeScannedCallback = void Function(String barcode);
 
-/// This widget will listen for raw PHYSICAL keyboard events
-/// even when other controls have primary focus.
-/// It will buffer all characters coming in specifed `bufferDuration` time frame
-/// that end with line feed character and call callback function with result.
-/// Keep in mind this widget will listen for events even when not visible.
-/// Windows seems to be using the [RawKeyDownEvent] instead of the
-/// [RawKeyUpEvent], this behaviour can be managed by setting [useKeyDownEvent].
 class BarcodeKeyboardListener extends StatefulWidget {
   final Widget child;
   final BarcodeScannedCallback _onBarcodeScanned;
   final Duration _bufferDuration;
   final bool useKeyDownEvent;
-
-  /// Make barcode scanner return case sensitive characters
-  ///
-  /// Default value is false, It will sent scanned barcode with case sensitive
-  /// characters. It listen to [LogicalKeyboardKey.shiftLeft]
-  /// Currently support for Android
   final bool caseSensitive;
 
-  /// This widget will listen for raw PHYSICAL keyboard events
-  /// even when other controls have primary focus.
-  /// It will buffer all characters coming in specifed `bufferDuration` time frame
-  /// that end with line feed character and call callback function with result.
-  /// Keep in mind this widget will listen for events even when not visible.
-  BarcodeKeyboardListener(
-      {Key? key,
-
-      /// Child widget to be displayed.
-      required this.child,
-
-      /// Callback to be called when barcode is scanned.
-      required Function(String) onBarcodeScanned,
-
-      /// When experiencing issueswith empty barcodes on Windows,
-      /// set this value to true. Default value is `false`.
-      this.useKeyDownEvent = false,
-
-      /// Maximum time between two key events.
-      /// If time between two key events is longer than this value
-      /// previous keys will be ignored.
-      Duration bufferDuration = hundredMs,
-      this.caseSensitive = false,
-      })
-      : _onBarcodeScanned = onBarcodeScanned,
+  BarcodeKeyboardListener({
+    Key? key,
+    required this.child,
+    required Function(String) onBarcodeScanned,
+    this.useKeyDownEvent = false,
+    Duration bufferDuration = hundredMs,
+    this.caseSensitive = false,
+  })  : _onBarcodeScanned = onBarcodeScanned,
         _bufferDuration = bufferDuration,
         super(key: key);
 
@@ -71,13 +41,9 @@ class _BarcodeKeyboardListenerState extends State<BarcodeKeyboardListener> {
 
   final BarcodeScannedCallback _onBarcodeScannedCallback;
   final Duration _bufferDuration;
-
   final _controller = StreamController<String?>();
-
   final bool _useKeyDownEvent;
-
   final bool _caseSensitive;
-
   bool _isShiftPressed = false;
 
   _BarcodeKeyboardListenerState(this._onBarcodeScannedCallback,
@@ -88,15 +54,17 @@ class _BarcodeKeyboardListenerState extends State<BarcodeKeyboardListener> {
   }
 
   void onKeyEvent(String? char) {
-    //remove any pending characters older than bufferDuration value
     checkPendingCharCodesToClear();
     _lastScannedCharCodeTime = DateTime.now();
     if (char == lineFeed) {
-      _onBarcodeScannedCallback.call(_scannedChars.join());
+      String scannedCode = _scannedChars.join();
+      print("Scanned barcode: $scannedCode");
+      _onBarcodeScannedCallback.call(scannedCode);
       resetScannedCharCodes();
     } else {
-      //add character to list of scanned characters;
-      _scannedChars.add(char!);
+      if (char != null && RegExp(r'^[a-zA-Z0-9]$').hasMatch(char)) {
+        _scannedChars.add(char);
+      }
     }
   }
 
@@ -114,11 +82,9 @@ class _BarcodeKeyboardListenerState extends State<BarcodeKeyboardListener> {
     _scannedChars = [];
   }
 
-  void addScannedCharCode(String charCode) {
-    _scannedChars.add(charCode);
-  }
-
   void _keyBoardCallback(RawKeyEvent keyEvent) {
+    print("Key event: ${keyEvent.character}, Logical key: ${keyEvent.logicalKey}");
+
     if (keyEvent.logicalKey.keyId > 255 &&
         keyEvent.data.logicalKey != LogicalKeyboardKey.enter &&
         keyEvent.data.logicalKey != LogicalKeyboardKey.shiftLeft) return;
@@ -131,7 +97,8 @@ class _BarcodeKeyboardListenerState extends State<BarcodeKeyboardListener> {
           if (_isShiftPressed && _caseSensitive) {
             _isShiftPressed = false;
             _controller.sink.add(String.fromCharCode(
-                ((keyEvent.data) as RawKeyEventDataAndroid).codePoint).toUpperCase());
+                    ((keyEvent.data) as RawKeyEventDataAndroid).codePoint)
+                .toUpperCase());
           } else {
             _controller.sink.add(String.fromCharCode(
                 ((keyEvent.data) as RawKeyEventDataAndroid).codePoint));
